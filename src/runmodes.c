@@ -85,7 +85,7 @@ static char *active_runmode;
 
 /**
  * \internal
- * \brief Translate a runmode mode to a printale string.
+ * \brief Translate a runmode mode to a printable string.
  *
  * \param runmode Runmode to be converted into a printable string.
  *
@@ -122,6 +122,8 @@ static const char *RunModeTranslateModeToName(int runmode)
             return "AF_PACKET_DEV";
         case RUNMODE_UNIX_SOCKET:
             return "UNIX_SOCKET";
+        case RUNMODE_NETMAP:
+            return "NETMAP";
         default:
             SCLogError(SC_ERR_UNKNOWN_RUN_MODE, "Unknown runtime mode. Aborting");
             exit(EXIT_FAILURE);
@@ -192,7 +194,11 @@ void RunModeRegisterRunModes(void)
     RunModeErfDagRegister();
     RunModeNapatechRegister();
     RunModeIdsAFPRegister();
+<<<<<<< HEAD
     RunModeTileMpipeRegister();
+=======
+    RunModeIdsNetmapRegister();
+>>>>>>> checkpoint first skeletal netmap version
     RunModeUnixSocketRegister();
 #ifdef UNITTESTS
     UtRunModeRegister();
@@ -286,6 +292,9 @@ void RunModeDispatch(int runmode, const char *custom_mode, DetectEngineCtx *de_c
                 break;
             case RUNMODE_AFP_DEV:
                 custom_mode = RunModeAFPGetDefaultMode();
+                break;
+            case RUNMODE_NETMAP:
+                custom_mode = RunModeNetmapGetDefaultMode();
                 break;
             case RUNMODE_UNIX_SOCKET:
                 custom_mode = RunModeUnixSocketGetDefaultMode();

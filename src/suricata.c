@@ -104,6 +104,7 @@
 
 #include "source-af-packet.h"
 #include "source-mpipe.h"
+#include "source-netmap.h"
 
 #include "respond-reject.h"
 
@@ -541,6 +542,9 @@ void usage(const char *progname)
 #ifdef HAVE_MPIPE
     printf("\t--mpipe                      : run with tilegx mpipe interface(s)\n");
 #endif
+#ifdef HAVE_NETMAP
+    printf("\t--netmap[=<dev>]                     : run in netmap mode, no value select interfaces from suricata.yaml\n");
+#endif
     printf("\n");
     printf("\nTo run the engine with default configuration on "
             "interface eth0 with signature file \"signatures.rules\", run the "
@@ -598,6 +602,9 @@ void SCPrintBuildInfo(void) {
 #endif
 #ifdef HAVE_DAG
     strlcat(features, "DAG ", sizeof(features));
+#endif
+#ifdef HAVE_NETMAP
+    strlcat(features, "NETMAP ", sizeof(features));
 #endif
 #ifdef HAVE_LIBCAP_NG
     strlcat(features, "LIBCAP_NG ", sizeof(features));
@@ -989,6 +996,9 @@ static TmEcode ParseCommandLine(int argc, char** argv, SCInstance *suri)
 #ifdef HAVE_MPIPE
         {"mpipe", optional_argument, 0, 0},
 #endif
+#ifdef HAVE_NETMAP
+        {"netmap", optional_argument, 0, 0},
+#endif
         {NULL, 0, NULL, 0}
     };
 
@@ -1070,6 +1080,38 @@ static TmEcode ParseCommandLine(int argc, char** argv, SCInstance *suri)
 #else
                 SCLogError(SC_ERR_NO_AF_PACKET,"AF_PACKET not enabled. On Linux "
                         "host, make sure to pass --enable-af-packet to "
+                        "configure when building.");
+                return TM_ECODE_FAILED;
+#endif
+            } else if (strcmp((long_opts[option_index]).name , "netmap") == 0){
+#ifdef HAVE_NETMAP
+                if (suri->run_mode == RUNMODE_UNKNOWN) {
+                    suri->run_mode = RUNMODE_NETMAP;
+                    if (optarg) {
+                        LiveRegisterDevice(optarg);
+                        memset(suri->pcap_dev, 0, sizeof(suri->pcap_dev));
+                        strlcpy(suri->pcap_dev, optarg,
+                                ((strlen(optarg) < sizeof(suri->pcap_dev)) ?
+                                 (strlen(optarg) + 1) : sizeof(suri->pcap_dev)));
+                    }
+                } else if (suri->run_mode == RUNMODE_NETMAP) {
+                    SCLogWarning(SC_WARN_PCAP_MULTI_DEV_EXPERIMENTAL, "using "
+                            "multiple devices to get packets is experimental.");
+                    if (optarg) {
+                        LiveRegisterDevice(optarg);
+                    } else {
+                        SCLogInfo("Multiple netmap option without interface on each is useless");
+                        break;
+                    }
+                } else {
+                    SCLogError(SC_ERR_MULTIPLE_RUN_MODE, "more than one run mode "
+                            "has been specified");
+                    usage(argv[0]);
+                    return TM_ECODE_FAILED;
+                }
+#else
+                SCLogError(SC_ERR_NO_AF_PACKET,"NETMAP not enabled."
+                        "Make sure to pass --enable-netmap to "
                         "configure when building.");
                 return TM_ECODE_FAILED;
 #endif
@@ -1913,7 +1955,83 @@ int main(int argc, char **argv)
         exit(EXIT_FAILURE);
     }
 
-    RegisterAllModules();
+
+    /* nfq */
+    TmModuleReceiveNFQRegister();
+    TmModuleVerdictNFQRegister();
+    TmModuleDecodeNFQRegister();
+    /* ipfw */
+    TmModuleReceiveIPFWRegister();
+    TmModuleVerdictIPFWRegister();
+    TmModuleDecodeIPFWRegister();
+    /* pcap live */
+    TmModuleReceivePcapRegister();
+    TmModuleDecodePcapRegister();
+    /* pcap file */
+    TmModuleReceivePcapFileRegister();
+    TmModuleDecodePcapFileRegister();
+    /* af-packet */
+    TmModuleReceiveAFPRegister();
+    TmModuleDecodeAFPRegister();
+    /* pfring */
+    TmModuleReceivePfringRegister();
+    TmModuleDecodePfringRegister();
+    /* dag file */
+    TmModuleReceiveErfFileRegister();
+    TmModuleDecodeErfFileRegister();
+    /* dag live */
+    TmModuleReceiveErfDagRegister();
+    TmModuleDecodeErfDagRegister();
+    /* napatech */
+    TmModuleNapatechStreamRegister();
+    TmModuleNapatechDecodeRegister();
+    /* netmap */
+    TmModuleReceiveNetmapRegister();
+    TmModuleDecodeNetmapRegister();
+
+    /* stream engine */
+    TmModuleStreamTcpRegister();
+    /* detection */
+    TmModuleDetectRegister();
+    /* respond-reject */
+    TmModuleRespondRejectRegister();
+
+    /* fast log */
+    TmModuleAlertFastLogRegister();
+    TmModuleAlertFastLogIPv4Register();
+    TmModuleAlertFastLogIPv6Register();
+    /* debug log */
+    TmModuleAlertDebugLogRegister();
+    /* prelue log */
+    TmModuleAlertPreludeRegister();
+    /* syslog log */
+    TmModuleAlertSyslogRegister();
+    TmModuleAlertSyslogIPv4Register();
+    TmModuleAlertSyslogIPv6Register();
+    /* unified2 log */
+    TmModuleUnified2AlertRegister();
+    /* pcap info log */
+    TmModuleAlertPcapInfoRegister();
+    /* drop log */
+    TmModuleLogDropLogRegister();
+    /* http log */
+    TmModuleLogHttpLogRegister();
+    TmModuleLogHttpLogIPv4Register();
+    TmModuleLogHttpLogIPv6Register();
+    TmModuleLogTlsLogRegister();
+    TmModuleLogTlsLogIPv4Register();
+    TmModuleLogTlsLogIPv6Register();
+    /* pcap log */
+    TmModulePcapLogRegister();
+    /* file log */
+    TmModuleLogFileLogRegister();
+    TmModuleLogFilestoreRegister();
+    /* cuda */
+#ifdef __SC_CUDA_SUPPORT__
+    TmModuleCudaMpmB2gRegister();
+    TmModuleCudaPacketBatcherRegister();
+#endif
+    TmModuleDebugList();
 
     AppLayerHtpNeedFileInspection();
 
