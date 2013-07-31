@@ -551,22 +551,26 @@ TmEcode NetmapWritePacket(Packet *p)
     return TM_ECODE_OK;
 }
 
-TmEcode NetmapReleaseDataFromRing(ThreadVars *t, Packet *p)
+void NetmapReleaseDataFromRing(Packet *p)
 {
-    int ret = TM_ECODE_OK;
     struct netmap_ring *rxring = p->netmap_v.rx;
 
     /* Need to be in copy mode and need to detect early release
        where Ethernet header could not be set (and pseudo packet) */
     if ((p->netmap_v.copy_mode != NETMAP_COPY_MODE_NONE) && !PKT_IS_PSEUDOPKT(p)) {
-        ret = NetmapWritePacket(p);
+        (void)NetmapWritePacket(p);
     }
     /* TBD: need to make this work across threads */
     //rxring->reserved--;
     NetmapAtomicDecr(&rxring->reserved);
-
-    return ret;
 }
+
+void NetmapReleasePacket(Packet *p)
+{
+    NetmapReleaseDataFromRing(p);
+    PacketFreeOrRelease(p);
+}
+
 
 void NetmapSwitchState(NetmapThreadVars *ptv, int state)
 {
@@ -728,7 +732,7 @@ TmEcode ReceiveNetmapLoop(ThreadVars *tv, void *data, void *slot)
                     p->netmap_v.rx = ring;
                     p->netmap_v.rx_ring = i;
                     p->netmap_v.rx_slot = cur;
-                    p->ReleaseData = NetmapReleaseDataFromRing;
+                    p->ReleasePacket = NetmapReleasePacket;
                     p->netmap_v.copy_mode = ptv->copy_mode;
                     if (ptv->copy_mode != NETMAP_COPY_MODE_NONE) {
                         p->netmap_v.tx = NETMAP_TXRING(ptv->tx_nifp, i);
