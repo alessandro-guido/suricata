@@ -194,11 +194,8 @@ void RunModeRegisterRunModes(void)
     RunModeErfDagRegister();
     RunModeNapatechRegister();
     RunModeIdsAFPRegister();
-<<<<<<< HEAD
     RunModeTileMpipeRegister();
-=======
     RunModeIdsNetmapRegister();
->>>>>>> checkpoint first skeletal netmap version
     RunModeUnixSocketRegister();
 #ifdef UNITTESTS
     UtRunModeRegister();

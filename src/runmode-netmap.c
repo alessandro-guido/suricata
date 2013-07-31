@@ -39,7 +39,6 @@
 #include "runmode-netmap.h"
 #include "log-httplog.h"
 #include "output.h"
-#include "cuda-packet-batcher.h"
 #include "detect-engine-mpm.h"
 
 #include "alert-fastlog.h"
